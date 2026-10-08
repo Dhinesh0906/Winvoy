@@ -28,8 +28,15 @@ settings, log tags) are unchanged.
 | Result | Boots, loads saves and plays to the first troll fight and beyond (sessions up to ~17 minutes) on the lowest settings, roughly 10-25 fps, with 2-4 s stalls while new areas stream in |
 | Limits | iOS terminates the app at ~6.1 GB on an 8 GB phone, so a game this size leans on Madeira's swap file; the phone also throttles to about half CPU speed after a few minutes |
 
+| | |
+|---|---|
+| Game | **X-Men Origins: Wolverine (2009)**, 32-bit DirectX 9, Unreal Engine 3 |
+| Device | **iPad Air (4th generation)** (A14, 4 GB RAM), iOS 27.0.1 |
+| Result | Menus and gameplay at about 20 fps |
+| Needed | NVIDIA PhysX 2.8.1 runtime (see [32-bit games and PhysX](#32-bit-games-and-physx)) |
+
 Other games are untested in Winvoy, but every change below is general and none
-of them is specific to God of War.
+of them is specific to God of War or Wolverine.
 
 ## Supported iPhones
 
@@ -42,6 +49,11 @@ Memory is what decides how big a game can run: Winvoy gets roughly the phone's
 RAM minus 1.5 GB before iOS terminates it (about 6.1 GB on a 15 Pro, about
 10 GB on a 17 Pro). Better cooling on newer Pro models also delays thermal
 throttling. Lighter and older games need much less and run far more smoothly.
+
+Older devices can run older games: an **iPad Air 4** (A14, 4 GB) runs a
+2009 32-bit game at about 20 fps. On such a device Winvoy gets about 2.8 GB of
+memory, and iOS gives the app a smaller address map (454 GB instead of 512 GB),
+which Winvoy now handles (see below).
 
 ## What Winvoy changes, and why
 
@@ -57,6 +69,8 @@ only what measurement on the device showed to be wrong. The fixes are on the
 | DXMT's worker pool failing to start a thread under memory pressure | Threw a C++ exception | **DXMT**: pool growth never throws; work stays queued for existing workers | On iOS the exception cannot unwind through the JIT-pool copy of `d3d11.dll`, so it escaped as a crash |
 | Per-draw dynamic buffers re-created every frame | Kept 64 recycled versions per buffer | **DXMT**: up to 2048 versions within 1 MB per buffer, 128 MB in total | Buffer reuse went from 57% to 99% and fresh allocations from ~1M to ~50k per session |
 | Available memory reported to games | Device-wide free pages | **Wine ntdll**: this app's real headroom before iOS terminates it | Free pages say nothing about how close the app is to its own limit |
+| A 454 GB address map (iPad Air 4): only ~5 GB above the GPU carveout, and the JIT pool's write alias sat on the one 4 GB slot a 32-bit game can use | Assumed a 512 GB or a 63 GB map | **App + Wine ntdll + FEX**: on maps that end between 452 and 456 GB, the write alias moves to a low hole (or above the slot), Wine uses the kernel's real map end, FEX's host band is the space above the slot, and the swap tier stays out of it | 32-bit games could not start at all ("no guest window", then "no FEX host arena") |
+| FEX's host memory for 32-bit games ran out at ~21 threads on that map | 16 MB call-ret stack per thread, compile buffers handed between threads only after 5 s idle, 8 MB 64-bit stack per WoW64 thread | **FEX WOW64**: 64 KB call-ret stack (the shadow stack is compiled out of that module), compile buffers reusable after 250 ms; **Wine**: 1 MB 64-bit stacks for 32-bit programs (upstream Wine's size) | The loading-screen hang was a thread that could not get memory and died holding FEX's thread-creation lock; 64-bit games are unchanged |
 | Building on a Mac | Scripts reconstructed from the developer's machine | **Build scripts** fixed for macOS hosts, plus helpers in `build/winvoy/` | The FEX configure, Wine headers, wineserver base archive, LLVM for iOS and DXMT shader headers were missing or failed on a clean Mac |
 
 Settings that make heavy games fit on an 8 GB iPhone (all in `madeira.cfg`,
@@ -144,6 +158,9 @@ bash build/dxmt-ios/build.sh && bash build/winvoy/combine-dxmt.sh
 bash build/winvoy/configure-wine-arm64ec.sh         # only to rebuild DXMT's d3d11.dll
 bash build/rppairing-ios/build.sh
 bash build/stage-licenses.sh
+# 32-bit games (WoW64): the i386 Windows libraries and FEX's 32-bit module
+PATH=/opt/homebrew/opt/bison/bin:$PATH bash build/wine-i386/build.sh   # needs bison >= 3 (brew install bison)
+bash build/fex-wow64/build.sh
 ```
 
 [`docs/BUILDING.md`](docs/BUILDING.md) explains each step.
@@ -197,6 +214,57 @@ env.MADEIRA_PAD_MODE = hid
 - `env.MADEIRA_PAD_MODE = hid` presents a PlayStation controller as a real
   DualSense (needed by Sony PC ports such as God of War).
 - Use the lowest graphics settings in the game itself and keep the phone cool.
+
+### Settings for a 4 GB iPad (iPad Air 4)
+
+The settings Wolverine ran with:
+
+```ini
+pool = 768
+vram-mb = 1024
+swap-mb = 4096
+env.MADEIRA_SWAP_COVERAGE = broad
+env.MADEIRA_SWAP_MIN_KB = 64
+env.MADEIRA_WOW_MIN_FREE_GB = 1
+env.FEX_DISABLEL2CACHE = 1
+```
+
+- `vram-mb = 1024`: a 32-bit Direct3D 9 game reads 4096 MB as 0.
+- `MADEIRA_WOW_MIN_FREE_GB = 1`: the default asks for 8 GB of address space
+  left over after the 32-bit window, which this map does not have.
+- `FEX_DISABLEL2CACHE = 1`: about 40 MB less address space per game thread.
+- `pool` is an upper bound; on this map the app sizes the pool so both of its
+  views fit in low memory.
+
+### 32-bit games and PhysX
+
+Many 2007-2012 games use NVIDIA PhysX 2.x and crash at start without it
+(`PhysXLoader.dll` missing in the log). Its files are not in this repository.
+Download NVIDIA's *PhysX System Software* from nvidia.com, unpack it on the Mac
+(`7zz x PhysX_*_SystemSoftware.exe`), and copy the 32-bit files into the app's
+Wine drive (`Documents/wine/drive_c`):
+
+- `Engine/v2.8.1/PhysXCore.dll` and `Engine/v2.8.1/NxCooking.dll` (as
+  `PhysXCooking.dll`) → `Program Files (x86)/NVIDIA Corporation/PhysX/Engine/v2.8.1/`
+  (use the engine version the game ships, see its `NxCooking.dll` version)
+- `Common/PhysXLoader.dll`, `PhysXDevice.dll`, `PhysXUpdateLoader.dll`,
+  `cudart32_65.dll` → `Program Files (x86)/NVIDIA Corporation/PhysX/Common/`,
+  and `cudart32_65.dll` + `PhysXDevice.dll` also next to the game's `.exe`
+
+and add to `Documents/wine/system.reg` (with Winvoy closed):
+
+```
+[Software\\Wow6432Node\\AGEIA Technologies]
+"HwSelection"="CPU"
+"PhysX Version"=dword:008cdaab
+"PhysXCore Path"="C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Engine"
+
+[Software\\Wow6432Node\\AGEIA Technologies\\PhysX_A32_Engines]
+"2.8.1"=dword:00000036
+```
+
+The game runs from its copy under `Documents/wine/drive_c`, so put game-side
+files there, not in the folder you first copied to the device.
 
 ### Repository layout
 

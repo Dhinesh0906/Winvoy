@@ -1015,6 +1015,14 @@ static void *ios_pool_warmer_thread( void *arg )
                         else b = B_OTHER;
                         band_dirty[b] += d;
                         band_res[b] += (unsigned long long)info.pages_resident << 14;
+                        /* Every 10th cycle, each FEX-band region with >= 1 MB dirty
+                         * (resident-dirty + compressed), so the band total can be
+                         * matched against the [vname] FEXMem_* names offline. */
+                        if (b == B_FEX && cycle % 10 == 0 && d >= (1ULL << 20))
+                            dprintf(2, "[fex-map] cycle=%u 0x%llx+0x%llx dirty=%llu MB res=%llu MB swap=%llu MB tag=%u\n",
+                                    cycle, (unsigned long long)raddr, (unsigned long long)rsize, d >> 20,
+                                    ((unsigned long long)info.pages_resident << 14) >> 20,
+                                    ((unsigned long long)info.pages_swapped_out << 14) >> 20, info.user_tag);
                         if (b == B_HOST_LOW || b == B_PA)
                         {
                             int w = 0, q;
@@ -5586,9 +5594,29 @@ static int ios_va_pressure;
  * forget the second one. Computing it from the pool the app actually allocated
  * removes that trap entirely. Falls back to the 896MB pairing until the pool
  * size is published, which is before any use site runs. */
+/* A map that ends below 0x7200000000 gets the alias off the 32-bit window slot
+ * (StikJITHelper, MADEIRA_RW_ALIAS_ABOVE_WOW_SLOT): into a low hole, or above the
+ * slot. Then nothing of ours sits at 0x7000000000 and the floor is the carveout's
+ * end itself. */
+static int ios_rw_alias_above_slot = -1;
 static inline ULONG_PTR ios_usable_va_floor_get(void)
 {
     size_t sz = ios_jit_pool_size_global;
+    if (ios_rw_alias_above_slot < 0)
+    {
+        const char *rw = getenv( "WINE_IOS_JIT_RW" );
+        ULONG_PTR rwb = rw ? (ULONG_PTR)strtoull( rw, NULL, 16 ) : 0;
+        if (rwb)
+        {
+            task_vm_info_data_t vmi;
+            mach_msg_type_number_t cnt = TASK_VM_INFO_COUNT;
+            ULONG_PTR map_end = task_info( mach_task_self(), TASK_VM_INFO, (task_info_t)&vmi, &cnt ) == KERN_SUCCESS
+                                ? (ULONG_PTR)vmi.max_address : 0;
+            ios_rw_alias_above_slot = rwb != (ULONG_PTR)0x7000000000ULL &&
+                                      map_end > (ULONG_PTR)0x7100000000ULL && map_end < (ULONG_PTR)0x7200000000ULL;
+        }
+    }
+    if (ios_rw_alias_above_slot > 0) return (ULONG_PTR)0x7000000000ULL;
     return (ULONG_PTR)0x7000000000ULL + (ULONG_PTR)(sz ? sz : (896ULL << 20));
 }
 #define ios_usable_va_floor (ios_usable_va_floor_get())
@@ -15677,6 +15705,9 @@ static int ios_swap_eligible( const void *base, size_t size, unsigned int vprot,
     if (!(vprot & VPROT_WRITE) || (vprot & (VPROT_EXEC | VPROT_WRITECOPY | VPROT_GUARD | VPROT_WRITEWATCH))) return 0;
     if (!view || !is_view_valloc( view ) || (view->protect & (SEC_FILE | SEC_IMAGE | SEC_RESERVE | VPROT_SYSTEM))) return 0;
     if (b < 0x7000000000ULL || b >= 0x7c00000000ULL) return 0;   /* the guest band only */
+    /* On a map that ends below 0x7200000000 FEX's host band is what lies above the
+     * 32-bit window slot, not [0x7c, 0x80): keep it out of the swap tier too. */
+    if ((void)ios_usable_va_floor, ios_rw_alias_above_slot > 0 && b + size > 0x7100000000ULL) return 0;
     if (size < ios_swap_min) return 0;   /* 8 MB unless madeira.cfg swap-min-mb (ml1257) */
     return 1;
 }
@@ -15698,6 +15729,7 @@ static int ios_swap_why( const void *base, size_t size, unsigned int vprot, stru
         (view->protect & (SEC_FILE | SEC_IMAGE | SEC_RESERVE | VPROT_SYSTEM | VPROT_PLACEHOLDER |
                           VPROT_FREE_PLACEHOLDER | VPROT_ARM64EC | VPROT_WRITEWATCH))) return IOS_SW_VIEW;
     if (ios_swap_is_fexjit( b, size )) return IOS_SW_FEXJIT;
+    if ((void)ios_usable_va_floor, ios_rw_alias_above_slot > 0 && b + size > 0x7100000000ULL) return IOS_SW_BAND;
     if (ios_swap_broad) { if (b + size > 0x7c00000000ULL) return IOS_SW_BAND; }   /* ml1257: FEX's band and above */
     else if (!ios_swap_wide && (b < 0x7000000000ULL || b >= 0x7c00000000ULL)) return IOS_SW_BAND;
     if (size < ios_swap_min) return IOS_SW_SMALL;
@@ -16041,7 +16073,8 @@ static int ios_swap_whole_resv( struct file_view *view, unsigned int vprot )
     { ios_swap_skip_bytes[IOS_SWK_VIEW] += view->size; return 0; }
     if (view->size < ios_swap_min) { ios_swap_skip_bytes[IOS_SWK_SMALL] += view->size; return 0; }
     if (view->size > ios_swap_resv_max) { ios_swap_skip_bytes[IOS_SWK_BIG] += view->size; return 0; }
-    if (ios_swap_is_fexjit( b, view->size ) || b + view->size > 0x7c00000000ULL)
+    if (ios_swap_is_fexjit( b, view->size ) || b + view->size > 0x7c00000000ULL ||
+        ((void)ios_usable_va_floor, ios_rw_alias_above_slot > 0 && b + view->size > 0x7100000000ULL))
     { ios_swap_skip_bytes[IOS_SWK_FEXJIT] += view->size; return 0; }
     if (ios_swap_n && ios_swap_overlaps( view->base, view->size )) { ios_swap_skip_bytes[IOS_SWK_OVERLAP] += view->size; return 0; }
     if (ios_swap_churny( view->size ))   /* ml1258 */
@@ -16793,6 +16826,22 @@ static void *get_host_addr_space_limit(void)
             dprintf( 2, "[va-limit] ml749 walk=%p kernel_max=%p -> %s\n",
                      walked, kern, kern > walked ? "USING KERNEL (walk underestimated)" : "keeping walk" );
             if (kern > walked && (uintptr_t)kern >= 0x100000000ULL) return kern;
+            /* A map that ends between 0x7100000000 and 0x7200000000 (454 GB on an
+             * iPad Air 4) passes the walk's 256 GB probe and is rounded up to
+             * 512 GB, so the views and band requests above its real end are
+             * accepted on paper and fail (or dangle) in the kernel. Lower the
+             * limit only there, and only when a mapping at the kernel's
+             * ceiling is really refused. */
+            if (kern < walked && (uintptr_t)kern > 0x7100000000ULL && (uintptr_t)kern < 0x7200000000ULL)
+            {
+                void *probe = mmap( kern, host_page_size, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0 );
+                int refused = probe == MAP_FAILED || probe < kern;
+
+                if (probe != MAP_FAILED) munmap( probe, host_page_size );
+                dprintf( 2, "[va-limit] map ends at %p: %s\n", kern,
+                         refused ? "nothing maps there -- USING KERNEL" : "it maps after all -- keeping walk" );
+                if (refused) return kern;
+            }
         }
         else dprintf( 2, "[va-limit] ml749 walk=%p kernel_max=UNAVAILABLE -> keeping walk\n", walked );
 
@@ -19418,6 +19467,7 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR limit_low, UL
     NTSTATUS status;
     sigset_t sigset;
     SIZE_T size;
+    BOOL guard_page_floor = TRUE;
 
     {
         /* Owner-aware (X3): default stack sizes come from the calling
@@ -19443,7 +19493,17 @@ NTSTATUS virtual_alloc_thread_stack( INITIAL_TEB *stack, ULONG_PTR limit_low, UL
      * lazy, so untouched reserve pages never count against the 4096MB jetsam
      * footprint. If 8MB ALSO overflows, the [stack-ovf] three-window stack
      * fingerprint names the recursion cycle — chase that, not more size. */
-    if (guard_page && size < 8 * 1024 * 1024)
+    /* Not for the 64-bit stack of a 32-bit program's thread (limit_high 0 in a
+     * WoW64 process): only wow64.dll and the CPU module run on it, as on
+     * upstream Wine with 1MB, and on a map with little host VA (454 GB) 8MB
+     * apiece is what ran out first -- dinput/xinput threads failed with
+     * ERROR_NOT_ENOUGH_MEMORY. The 32-bit stack, in the guest window, keeps it. */
+    {
+        extern const SECTION_IMAGE_INFORMATION *ios_cur_image_info(void);
+        const SECTION_IMAGE_INFORMATION *ii = ios_cur_image_info();
+        if (ii && ii->Machine == IMAGE_FILE_MACHINE_I386 && !limit_high) guard_page_floor = FALSE;
+    }
+    if (guard_page && guard_page_floor && size < 8 * 1024 * 1024)
     {
         static int floored;
         if (floored < 12 && ++floored <= 12)

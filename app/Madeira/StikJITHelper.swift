@@ -414,6 +414,28 @@ enum StikJITHelper {
                                         level: .error)
                 }
             }
+            // On a map that ends between 0x7100000000 and 0x7200000000 the RW alias
+            // otherwise lands above the 32-bit window slot, inside the only room FEX's
+            // host band has. Size the pool to the second-largest hole so the alias can
+            // take that one (the alias placement below looks for it), as long as the
+            // pool stays above the ~500MB the code cache needs.
+            var mvi = task_vm_info_data_t()
+            var mviCount = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+            let mviKr = withUnsafeMutablePointer(to: &mvi) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: Int(mviCount)) {
+                    task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &mviCount)
+                }
+            }
+            if mviKr == KERN_SUCCESS, mvi.max_address > 0x7100000000, mvi.max_address < 0x7200000000,
+               MadeiraConfig.flag("MADEIRA_RW_ALIAS_ABOVE_WOW_SLOT") {
+                let sizes = holes.map { $0.size }.sorted(by: >)
+                let second = sizes.count > 1 ? Int(sizes[1]) & ~((16 << 20) - 1) : 0
+                if second >= 500 << 20 && second < poolSize {
+                    LogStore.shared.log("[rw-alias] pool \(poolSize >> 20)MB -> \(second >> 20)MB so its RW alias fits the "
+                        + "second-largest low hole instead of FEX's host band")
+                    poolSize = second
+                }
+            }
             // ml1040: the debugger allocates first-fit. If a LOWER hole also fits
             // the final pool size it would win and strand the pool below the
             // window again, so plug those for the duration of the request.
@@ -636,7 +658,43 @@ enum StikJITHelper {
         var kr1: kern_return_t = KERN_NO_SPACE
         // Places the JIT pool's RW alias lower when the 0x7000000000 hint is past the end of the address map (63 GB maps): just above the RX pool, then where the kernel chooses; 0 fails at the hint as before.
         let aliasRetry = MadeiraConfig.flag("MADEIRA_RW_ALIAS_RETRY")
-        for hint in [vm_address_t(0x7000000000), rxAddrV + vm_address_t(poolSize), 0] {
+        // A map that ends between 0x7100000000 and 0x7200000000 (454 GB on an
+        // iPad Air 4) has room above the carveout for exactly one 4 GB-aligned
+        // 32-bit guest window, at 0x7000000000, and the alias sits on it. Put
+        // the alias above that slot instead, one MB past its guard page; 512 GB
+        // and 63 GB maps are unchanged. MADEIRA_RW_ALIAS_ABOVE_WOW_SLOT=0 keeps
+        // the alias at 0x7000000000.
+        var aliasHints: [vm_address_t] = [vm_address_t(0x7000000000), rxAddrV + vm_address_t(poolSize), 0]
+        var vmi = task_vm_info_data_t()
+        var vmiCount = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let vmiKr = withUnsafeMutablePointer(to: &vmi) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(vmiCount)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &vmiCount)
+            }
+        }
+        let aboveSlot = vm_address_t(0x7100100000)
+        if vmiKr == KERN_SUCCESS, MadeiraConfig.flag("MADEIRA_RW_ALIAS_ABOVE_WOW_SLOT"),
+           vmi.max_address < 0x7200000000, vmi.max_address >= UInt64(aboveSlot) + UInt64(poolSize) {
+            aliasHints.insert(aboveSlot, at: 0)
+            // What is left above the slot (~1.3 GB) is also FEX's whole host
+            // band there, so a low hole below the carveout is better still:
+            // take one if it fits, else stay above the slot.
+            var low = vm_address_t(0x100000000)   // first fit from the bottom of the map
+            var lowCur: vm_prot_t = 0, lowMax: vm_prot_t = 0
+            if vm_remap(mach_task_self_, &low, vm_size_t(poolSize), 0, VM_FLAGS_ANYWHERE, mach_task_self_,
+                        vm_address_t(bitPattern: rxPtr), 0, &lowCur, &lowMax, VM_INHERIT_NONE) == KERN_SUCCESS {
+                if UInt64(low) + UInt64(poolSize) <= 0x7000000000 && !overlapsExeWindow(low, vm_address_t(poolSize)) {
+                    vm_deallocate(mach_task_self_, low, vm_size_t(poolSize))
+                    aliasHints.insert(low, at: 0)
+                } else {
+                    vm_deallocate(mach_task_self_, low, vm_size_t(poolSize))
+                }
+            }
+            LogStore.shared.log(String(format: "[rw-alias] map ends at 0x%llx: alias goes %@ (hint 0x%lx)",
+                                       vmi.max_address, aliasHints[0] == aboveSlot ? "above the 32-bit window slot" : "into a low hole",
+                                       Int(aliasHints[0])))
+        }
+        for hint in aliasHints {
             rwAddr = hint
             kr1 = vm_remap(
                 mach_task_self_,
@@ -651,7 +709,7 @@ enum StikJITHelper {
                 &maxProt,
                 VM_INHERIT_NONE
             )
-            if hint != 0x7000000000 {
+            if hint != 0x7000000000 && hint != aboveSlot {
                 LogStore.shared.log(String(format: "[rw-alias] high hint out of reach; %@ kr=%d RW=0x%lx",
                                            hint == 0 ? "kernel placement" : String(format: "above the RX pool (hint 0x%lx)", Int(hint)),
                                            kr1, Int(rwAddr)), level: kr1 == KERN_SUCCESS ? .info : .error)
