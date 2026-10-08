@@ -17,16 +17,27 @@ msvcp140_atomic_wait.dll
 ## How to get them
 
 Download the official x64 redistributable from Microsoft
-(`VC_redist.x64.exe`) and extract it. On macOS, 7-Zip can do this:
+(`VC_redist.x64.exe`, https://aka.ms/vs/17/release/vc_redist.x64.exe).
+
+On Windows, install it and copy the twelve files above from
+`C:\Windows\System32`.
+
+On macOS, the x64 DLLs are in one of the installer's embedded cabinets, named
+`<file>_amd64`:
 
 ```sh
-brew install sevenzip
-7zz x VC_redist.x64.exe -o/tmp/vcredist
-7zz x /tmp/vcredist/.rsrc/1033/CABINET/*.cab -oapp/Madeira/x86_64-vcruntime
+brew install cabextract
+cabextract -q -d /tmp/vcredist VC_redist.x64.exe
+for cab in /tmp/vcredist/a*; do
+  cabextract -l "$cab" 2>/dev/null | grep -q 'vcruntime140.dll_amd64' && \
+    cabextract -q -d app/Madeira/x86_64-vcruntime "$cab"
+done
+(cd app/Madeira/x86_64-vcruntime && for f in *_amd64; do mv "$f" "${f%_amd64}"; done)
 ```
 
-Exact layout varies by redistributable version; the goal is simply the twelve
-files above, **byte-for-byte as Microsoft shipped them**.
+Checked against the 2025 redistributable (14.44). For an installed IPA, copy
+the files into Files › Winvoy › `x86_64-vcruntime` instead; the app uses that
+folder when its bundle has none.
 
 ## Do not modify them
 

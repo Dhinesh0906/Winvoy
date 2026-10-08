@@ -116,11 +116,47 @@ Each [release](https://github.com/Dhinesh0906/Winvoy/releases) has an unsigned
 
 1. Sign and install it with SideStore, AltStore, Sideloadly or Plume.
 2. Set up JIT ([docs/JIT.md](docs/JIT.md)); iOS 26 or later.
-3. Microsoft's Visual C++ runtime is not in the IPA (its licence does not
-   allow it). Many games need it: unpack `vc_redist.x64.exe` (see
-   [`tools/fetch-vcruntime.md`](tools/fetch-vcruntime.md)) and copy its DLLs
-   into **Files › On My iPhone › Winvoy › `x86_64-vcruntime`**.
+3. Add Microsoft's Visual C++ runtime (below). It is not in the IPA because
+   Microsoft's licence does not allow it, and many games need it.
 4. Copy a game folder into Winvoy and add its `.exe` to the library.
+
+#### Microsoft's Visual C++ runtime DLLs
+
+Winvoy needs these 12 x64 files, unmodified:
+
+```
+concrt140.dll   msvcp140.dll   msvcp140_1.dll   msvcp140_2.dll
+msvcp140_atomic_wait.dll   msvcp140_codecvt_ids.dll   vcamp140.dll
+vccorlib140.dll   vcomp140.dll   vcruntime140.dll   vcruntime140_1.dll
+vcruntime140_threads.dll
+```
+
+**On Windows:** install Microsoft's
+[Visual C++ Redistributable (x64)](https://aka.ms/vs/17/release/vc_redist.x64.exe)
+if it is not installed already, then copy the 12 files above from
+`C:\Windows\System32` into a folder (on 64-bit Windows, `System32` holds the
+x64 versions).
+
+**On a Mac:** download the same
+[`vc_redist.x64.exe`](https://aka.ms/vs/17/release/vc_redist.x64.exe), then in
+Terminal, in the folder you downloaded it to:
+
+```sh
+brew install cabextract
+cabextract -q -d vcredist vc_redist.x64.exe
+for cab in vcredist/a*; do
+  cabextract -l "$cab" 2>/dev/null | grep -q 'vcruntime140.dll_amd64' && cabextract -q -d x86_64-vcruntime "$cab"
+done
+cd x86_64-vcruntime && for f in *_amd64; do mv "$f" "${f%_amd64}"; done && ls
+```
+
+That leaves the 12 files in `x86_64-vcruntime`.
+
+**Then, on the iPhone or iPad:** open Winvoy once, and copy the 12 files into
+**Files › On My iPhone (or iPad) › Winvoy › `x86_64-vcruntime`** (create the
+folder if it is not there). From a computer, use Finder (Mac) or iTunes / the
+Apple Devices app (Windows) › your device › Files › Winvoy, or AirDrop them
+and move them in the Files app.
 
 On first launch Winvoy writes starting settings sized to the device into
 `madeira.cfg` (8 GB+ devices and smaller ones get different values; anything
