@@ -1,0 +1,16 @@
+[submodule "FEX"]
+	path = FEX
+	url = https://github.com/Dhinesh0906/FEX.git
+	branch = magnus
+[submodule "wine"]
+	path = wine
+	url = https://github.com/Dhinesh0906/wine.git
+	branch = magnus
+[submodule "dxmt"]
+	path = dxmt
+	url = https://github.com/Dhinesh0906/dxmt.git
+	branch = magnus
+[submodule "madeira-dock"]
+	path = madeira-dock
+	url = https://github.com/willfaust/madeira-dock.git
+	branch = main
