@@ -135,6 +135,48 @@ enum MadeiraConfig {
         return getenv(name).map { String(cString: $0) != "0" } ?? fallback
     }
 
+    /// Winvoy: starting settings sized to this device, written once (marked by
+    /// `device-profile`). Only keys the file does not already have are added, so
+    /// anything the user set wins. 8 GB+ devices get the settings God of War ran
+    /// with on an iPhone 15 Pro; smaller ones those X-Men Origins: Wolverine ran with
+    /// on an iPad Air 4. The two address-space switches are only for maps that end
+    /// below 0x7200000000 (454 GB on an iPad Air 4).
+    static func applyDeviceProfile(log: (String) -> Void) {
+        guard url != nil, get("device-profile") == nil else { return }
+        let ramGB = Double(ProcessInfo.processInfo.physicalMemory) / Double(1 << 30)
+        var vmi = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        let kr = withUnsafeMutablePointer(to: &vmi) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        let smallMap = kr == KERN_SUCCESS && vmi.max_address > 0x7100000000 && vmi.max_address < 0x7200000000
+        let large = ramGB >= 7
+        var keys: [(String, String)] = [
+            ("pool", large ? "640" : "768"),
+            ("vram-mb", "1024"),
+            ("dxmt", "dxgi.forceSDR=True;d3d11.preferredMaxFrameRate=30"),
+            ("env.DXMT_IOS_CACHE_DIR", "1"),
+            ("swap-mb", large ? "6144" : "4096"),
+            ("env.MADEIRA_SWAP_COVERAGE", "broad"),
+            ("env.MADEIRA_SWAP_MIN_KB", "64"),
+        ]
+        if large {
+            keys += [("swap-advise", "1"), ("totalphys", "4096"), ("vram-trim-mb", "1024")]
+        }
+        if smallMap {
+            keys += [("env.MADEIRA_WOW_MIN_FREE_GB", "1"), ("env.FEX_DISABLEL2CACHE", "1")]
+        }
+        let have = all()
+        let added = keys.filter { have[$0.0] == nil }
+        for (k, v) in added { set(k, v) }
+        let name = (large ? "8gb" : "small") + (smallMap ? "-smallmap" : "")
+        set("device-profile", name)
+        log(String(format: "madeira.cfg: device profile %@ (%.1f GB RAM, map ends at 0x%llx) added %@", name, ramGB,
+                   UInt64(vmi.max_address), added.isEmpty ? "nothing" : added.map { $0.0 }.joined(separator: ", ")))
+    }
+
     /// One-time migration: with no madeira.cfg and at least one legacy file,
     /// write madeira.cfg from them. Legacy files are left in place (ignored from
     /// now on) so nothing is destroyed; the log names them so they can be deleted.

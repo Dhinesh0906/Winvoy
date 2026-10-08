@@ -2576,6 +2576,7 @@ struct ContentView: View {
         /* ml1095: one config file. Written once from any legacy madeira-*.txt. */
         MadeiraConfig.migrateLegacy { self.logStore.log($0) }
         MadeiraConfig.deleteLegacyFiles { self.logStore.log($0) }   /* ml1096: the old files go once the cfg exists */
+        MadeiraConfig.applyDeviceProfile { self.logStore.log($0) }   /* Winvoy: starting settings for this device, once */
         /* ml2100: XInput (default) or the HID controller; before the wineserver starts. */
         GamepadInput.shared.beginPadSession()
         /* ml1990: player 1 exists before the game enumerates XInput. */
