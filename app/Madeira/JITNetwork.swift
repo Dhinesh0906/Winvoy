@@ -189,7 +189,7 @@ enum JITShortcutFile {
 /// disconnect LocalDevVPN (no VPN was on); "vpn-restore": connect the kept VPN again.
 /// Only Store Content keeps a VPN that Set VPN accepts: as text (a file, or a name
 /// Madeira passed back) it is only a name, which Set VPN cannot convert ("couldn't
-/// convert from Text to VPN"). Madeira runs "done" after any "start".
+/// convert from Text to VPN"). Winvoy runs "done" after any "start".
 ///
 /// An app can only run a shortcut by opening the Shortcuts app, so each run leaves
 /// Madeira for a moment and comes back through x-callback-url

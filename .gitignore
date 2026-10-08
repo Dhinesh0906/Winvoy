@@ -166,7 +166,7 @@ app/Madeira/i386-windows/*
 app/Madeira/arm64ec-windows/dockhost.exe
 app/Madeira/arm64ec-windows/dock-notices.txt
 
-# Magnus: never publish Microsoft redistributables or local installers
+# Winvoy: never publish Microsoft redistributables or local installers
 vc_redist.x64.exe
 app/Madeira/x86_64-vcruntime/
 .DS_Store

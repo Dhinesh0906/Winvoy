@@ -304,11 +304,11 @@ struct OnboardingView: View {
             Image(systemName: "gamecontroller.fill").font(.system(size: 52)).foregroundStyle(.tint).accessibilityHidden(true)
             if model.since > 0 {
                 // After an update: only the pages added since this device last ran setup.
-                Text("New in Madeira").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                Text("Since you last ran setup, Madeira has something new to set up:").font(.title3)
+                Text("New in Winvoy").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                Text("Since you last ran setup, Winvoy has something new to set up:").font(.title3)
             } else {
-                Text("Welcome to Madeira").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-                Text("Madeira runs Windows games on your \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone").")
+                Text("Welcome to Winvoy").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+                Text("Winvoy runs Windows games on your \(UIDevice.current.userInterfaceIdiom == .pad ? "iPad" : "iPhone").")
                     .font(.title3)
                 Text("A few optional steps get you ready:").foregroundStyle(.secondary)
             }
@@ -331,7 +331,7 @@ struct OnboardingView: View {
     private var localDevVPNPage: some View {
         VStack(alignment: .leading, spacing: 18) {
             header("Install LocalDevVPN", symbol: "network")
-            Text("Madeira enables JIT through LocalDevVPN, a free app that gives Madeira a network path to this \(device). Install it from the App Store, then come back.")
+            Text("Winvoy enables JIT through LocalDevVPN, a free app that gives Winvoy a network path to this \(device). Install it from the App Store, then come back.")
                 .fixedSize(horizontal: false, vertical: true)
             if localDevVPNInstalled {
                 Label("LocalDevVPN is installed", systemImage: "checkmark.circle.fill")
@@ -365,7 +365,7 @@ struct OnboardingView: View {
     private var jitChoices: some View {
         VStack(alignment: .leading, spacing: 18) {
             header("Set up JIT", symbol: "bolt.fill")
-            Text("JIT lets Madeira run Windows code. Choose how your \(device) gets it.")
+            Text("JIT lets Winvoy run Windows code. Choose how your \(device) gets it.")
             VStack(spacing: 12) {
                 jitChoice("In-app", symbol: "iphone.radiowaves.left.and.right",
                           detail: !OnDevicePairing.isSupported ? "Needs iOS 27 or later."
@@ -461,7 +461,7 @@ struct OnboardingView: View {
 
     private var vpnNoteLabel: some View {
         Label {
-            Text("Before you play, connect [LocalDevVPN](https://apps.apple.com/us/app/localdevvpn/id6755608044). Madeira enables JIT through it.")
+            Text("Before you play, connect [LocalDevVPN](https://apps.apple.com/us/app/localdevvpn/id6755608044). Winvoy enables JIT through it.")
         } icon: {
             Image(systemName: "network")
         }
@@ -598,7 +598,7 @@ struct OnboardingView: View {
     private var dockClientPage: some View {
         VStack(alignment: .leading, spacing: 18) {
             header("Prepare Madeira Dock", symbol: "shippingbox")
-            Text("Madeira Dock starts your installed Steam games through Valve's own Steam client, without the Steam desktop window. It needs the client's components, which Madeira downloads from Valve.")
+            Text("Winvoy Dock starts your installed Steam games through Valve's own Steam client, without the Steam desktop window. It needs the client's components, which Winvoy downloads from Valve.")
             if dock.clientInstalled {
                 Label("Valve's client components are installed.", systemImage: "checkmark.circle.fill")
                     .font(.headline).foregroundStyle(.green)
@@ -628,13 +628,13 @@ struct OnboardingView: View {
     private var wineMonoPage: some View {
         VStack(alignment: .leading, spacing: 18) {
             header("Add .NET Framework support", symbol: "shippingbox.and.arrow.backward")
-            Text("Some Windows games are built on Microsoft's .NET Framework. Madeira runs them on Wine Mono, the Wine project's open-source .NET runtime.")
+            Text("Some Windows games are built on Microsoft's .NET Framework. Winvoy runs them on Wine Mono, the Wine project's open-source .NET runtime.")
             if mono.installed {
                 Label("Wine Mono is installed.", systemImage: "checkmark.circle.fill")
                     .font(.headline).foregroundStyle(.green)
                 primary("Continue", symbol: "arrow.right") { model.next() }
             } else {
-                Text("Madeira downloads it from WineHQ: about 42 MB, about 130 MB once installed. Most games do not need it; you can also add it later in Settings.")
+                Text("Winvoy downloads it from WineHQ: about 42 MB, about 130 MB once installed. Most games do not need it; you can also add it later in Settings.")
                     .font(.subheadline).foregroundStyle(.secondary)
                 switch mono.phase {
                 case .downloading(let f), .installing(let f):
@@ -663,7 +663,7 @@ struct OnboardingView: View {
                 Text("You can change the JIT method or import a pairing file from Settings › JIT.")
             }
             if model.steps.contains(.dockClient) {
-                Text("Settings › Steam › Madeira Dock lists the Steam games installed in Madeira's drive_c and starts them.")
+                Text("Settings › Steam › Winvoy Dock lists the Steam games installed in Winvoy's drive_c and starts them.")
             }
             if model.steps.contains(.wineMono) {
                 Text("Settings › .NET Framework downloads or removes Wine Mono.")
@@ -701,7 +701,7 @@ struct SteamSettingsSection: View {
                 Button { open(.steamSignIn) } label: { Label("Sign in to Steam", systemImage: "person.crop.circle.badge.plus") }
             }
             if MadeiraDock.enabled {
-                Button { open(.dock) } label: { Label("Madeira Dock", systemImage: "shippingbox") }
+                Button { open(.dock) } label: { Label("Winvoy Dock", systemImage: "shippingbox") }
                 if let status = dock.status {
                     Text(status).font(.caption).foregroundStyle(.secondary)
                 }
@@ -712,7 +712,7 @@ struct SteamSettingsSection: View {
         } header: {
             Text("Steam")
         } footer: {
-            Text("Madeira keeps a Steam sign-in token in this device's Keychain, for this device only. Signing out removes it.")
+            Text("Winvoy keeps a Steam sign-in token in this device's Keychain, for this device only. Signing out removes it.")
         }
         .confirmationDialog("Sign out of Steam?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { signIn.signOut() }

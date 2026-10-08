@@ -592,7 +592,7 @@ struct SteamSignInCard: View {
                 Image(systemName: "person.crop.circle.badge.plus").font(.system(size: 30)).foregroundStyle(.tint)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Sign in to Steam").font(.headline)
-                    Text("See your Steam games here and install them without leaving Madeira.")
+                    Text("See your Steam games here and install them without leaving Winvoy.")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 0)
@@ -996,7 +996,7 @@ struct SteamCloudQuitRow: View {
     var body: some View {
         if SteamOwnedLibrary.cloudQuitEnabled, steam.signedIn {
             VStack(alignment: .leading, spacing: 8) {
-                Button("Upload saves and close Madeira", systemImage: "icloud.and.arrow.up") { run(replaceCloud: false) }
+                Button("Upload saves and close Winvoy", systemImage: "icloud.and.arrow.up") { run(replaceCloud: false) }
                     .disabled(working)
                 switch steam.cloudQuit {
                 case .working(let text):
@@ -1005,7 +1005,7 @@ struct SteamCloudQuitRow: View {
                     Label(count == 0 ? "Steam Cloud is already up to date. Closing…" : "Uploaded \(count) save\(count == 1 ? "" : "s"). Closing…",
                           systemImage: "checkmark.circle.fill").font(.callout).foregroundStyle(.green)
                 case .failed(let message):
-                    Text("Not uploaded, Madeira stays open: \(message)").font(.callout).foregroundStyle(.orange)
+                    Text("Not uploaded, Winvoy stays open: \(message)").font(.callout).foregroundStyle(.orange)
                 case .conflict(let count):
                     Text("Not uploaded: \(count) save\(count == 1 ? " was" : "s were") also changed in Steam Cloud, by another device or with no record of a sync here. Uploading would replace the cloud's \(count == 1 ? "copy" : "copies").")
                         .font(.callout).foregroundStyle(.orange)
@@ -1013,11 +1013,11 @@ struct SteamCloudQuitRow: View {
                         .confirmationDialog("Replace the Steam Cloud saves with this device's?", isPresented: $confirmReplace, titleVisibility: .visible) {
                             Button("Replace the cloud saves", role: .destructive) { run(replaceCloud: true) }
                             Button("Cancel", role: .cancel) { }
-                        } message: { Text("The saves in Steam Cloud are overwritten for every device. Their current copies are saved first, in Files › Madeira › Steam Cloud Backups.") }
+                        } message: { Text("The saves in Steam Cloud are overwritten for every device. Their current copies are saved first, in Files › Winvoy › Steam Cloud Backups.") }
                 case nil:
                     EmptyView()
                 }
-                Text("Save in the game first. Uploads this game's saves to Steam Cloud, then closes Madeira; Steam in this session is signed out when the upload starts.")
+                Text("Save in the game first. Uploads this game's saves to Steam Cloud, then closes Winvoy; Steam in this session is signed out when the upload starts.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }
@@ -1060,7 +1060,7 @@ struct SteamCloudSection: View {
             } header: {
                 Text("Steam Cloud")
             } footer: {
-                Text("Saves sync with Steam Cloud when Madeira starts and when this page opens, not while you play: use Upload saves and close Madeira in the game menu when you stop, or what you played is uploaded the next time Madeira starts. A save that differs on both sides, or that is missing on this device, is never replaced without asking, and a save a sync replaces is kept in Files › Madeira › Steam Cloud Backups.")
+                Text("Saves sync with Steam Cloud when Winvoy starts and when this page opens, not while you play: use Upload saves and close Winvoy in the game menu when you stop, or what you played is uploaded the next time Winvoy starts. A save that differs on both sides, or that is missing on this device, is never replaced without asking, and a save a sync replaces is kept in Files › Winvoy › Steam Cloud Backups.")
             }
         }
     }
@@ -1115,13 +1115,13 @@ struct SteamCloudSection: View {
             Text("Nothing is changed until you choose which to keep.")
                 .font(.caption).foregroundStyle(.secondary)
             Button("Keep the Steam Cloud saves…") { confirmCloud = true }
-                .confirmationDialog("Use the Steam Cloud version of \(Self.saves(conflicts.count)) on this device? This device's copies are saved first, in Files › Madeira › Steam Cloud Backups.",
+                .confirmationDialog("Use the Steam Cloud version of \(Self.saves(conflicts.count)) on this device? This device's copies are saved first, in Files › Winvoy › Steam Cloud Backups.",
                                     isPresented: $confirmCloud, titleVisibility: .visible) {
                     Button("Use the Steam Cloud saves", role: .destructive) { Task { await steam.resolveCloud(appID, useCloud: true) } }
                     Button("Cancel", role: .cancel) {}
                 }
             Button("Keep this device's saves…") { confirmDevice = true }
-                .confirmationDialog("Keep this device's version of \(Self.saves(conflicts.count))? Saves that differ replace Steam Cloud's for every device; the cloud's copies are saved first, in Files › Madeira › Steam Cloud Backups. Saves missing on this device stay missing, and Steam Cloud keeps them.",
+                .confirmationDialog("Keep this device's version of \(Self.saves(conflicts.count))? Saves that differ replace Steam Cloud's for every device; the cloud's copies are saved first, in Files › Winvoy › Steam Cloud Backups. Saves missing on this device stay missing, and Steam Cloud keeps them.",
                                     isPresented: $confirmDevice, titleVisibility: .visible) {
                     Button("Keep this device's saves", role: .destructive) { Task { await steam.resolveCloud(appID, useCloud: false) } }
                     Button("Cancel", role: .cancel) {}
@@ -1181,7 +1181,7 @@ struct SteamEntrySection: View {
         let direct = entry.startsSteamGameDirectly
         Section {
             Picker("Start with", selection: Binding(get: { direct ? SteamDirectStart.mode : "dock" }, set: { choose($0) })) {
-                Text("Madeira Dock").tag("dock")
+                Text("Winvoy Dock").tag("dock")
                 Text("The game").tag(SteamDirectStart.mode)
             }
             if direct {
@@ -1206,7 +1206,7 @@ struct SteamEntrySection: View {
                 }
             } else {
                 if !dock.clientInstalled {
-                    Text("Madeira Dock needs Valve's client components. Download them in Settings › Steam › Madeira Dock.")
+                    Text("Winvoy Dock needs Valve's client components. Download them in Settings › Steam › Winvoy Dock.")
                         .font(.caption).foregroundStyle(.orange)
                 }
                 Toggle("Smaller JIT pool (512 MB) for this launch", isOn: $dock.compactPool)
@@ -1250,9 +1250,9 @@ struct SteamEntrySection: View {
             Text("Steam")
         } footer: {
             if direct {
-                Text("The game starts its own program in Wine, without Steam. This suits games that run without Steam (DRM-free); a game that needs Steam or its licence check does not start this way, so choose Madeira Dock for it.")
+                Text("The game starts its own program in Wine, without Steam. This suits games that run without Steam (DRM-free); a game that needs Steam or its licence check does not start this way, so choose Winvoy Dock for it.")
             } else {
-                Text("Madeira Dock starts the game through Valve's own Steam client, without the Steam desktop window. Valve's client signs in with your account and decides whether the game may run.")
+                Text("Winvoy Dock starts the game through Valve's own Steam client, without the Steam desktop window. Valve's client signs in with your account and decides whether the game may run.")
             }
         }
         .onAppear { dock.refresh(); games.refresh() }

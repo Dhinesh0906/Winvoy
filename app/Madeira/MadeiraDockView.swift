@@ -136,7 +136,7 @@ struct MadeiraDockView: View {
         NavigationStack {
             Form {
                 Section {
-                    Text("Madeira Dock starts an installed Steam game through Valve's own Steam client, without the Steam desktop window. Valve's client signs in with your account and decides whether the game may run.")
+                    Text("Winvoy Dock starts an installed Steam game through Valve's own Steam client, without the Steam desktop window. Valve's client signs in with your account and decides whether the game may run.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("Steam account") {
@@ -196,7 +196,7 @@ struct MadeiraDockView: View {
                     Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.red) }
                 }
             }
-            .navigationTitle("Madeira Dock").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Winvoy Dock").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
             .onAppear { dock.refresh(); signIn.refresh() }
             .sheet(isPresented: $showSignIn) { SteamSignInView() }

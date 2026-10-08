@@ -443,7 +443,7 @@ struct WineMonoSettingsSection: View {
         } header: {
             Text(".NET Framework")
         } footer: {
-            Text("Games built on Microsoft's .NET Framework run on Wine Mono, the Wine project's open-source .NET runtime. Madeira downloads it from WineHQ: about 42 MB, about 130 MB once installed.")
+            Text("Games built on Microsoft's .NET Framework run on Wine Mono, the Wine project's open-source .NET runtime. Winvoy downloads it from WineHQ: about 42 MB, about 130 MB once installed.")
         }
         .confirmationDialog("Remove Wine Mono?", isPresented: $confirmRemove, titleVisibility: .visible) {
             Button("Remove", role: .destructive) { mono.remove() }

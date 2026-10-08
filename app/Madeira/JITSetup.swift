@@ -613,14 +613,14 @@ struct JITSetupView: View {
                 } header: {
                     Text("JIT method")
                 } footer: {
-                    Text("Automatic uses StikDebug when it is installed. Madeira does not silently change methods after a failure.")
+                    Text("Automatic uses StikDebug when it is installed. Winvoy does not silently change methods after a failure.")
                 }
 
                 if coordinator.method != .stikDebug {
                     Section {
                         LabeledContent("Pairing", value: pairingLabel)
                         if OnDevicePairing.isSupported {
-                            Button(coordinator.pairingSource == .onDevice ? "Pair in Madeira again" : "Pair in Madeira") {
+                            Button(coordinator.pairingSource == .onDevice ? "Pair in Winvoy again" : "Pair in Winvoy") {
                                 pairing.start()
                             }
                             .disabled(pairing.active)
@@ -656,7 +656,7 @@ struct JITSetupView: View {
                                  destination: URL(string: "https://github.com/StikDebug/StikDebug/releases/latest")!)
                         }
                     } footer: {
-                        Text("StikDebug needs a pairing file and an active LocalDevVPN connection. Madeira sends its own script automatically.")
+                        Text("StikDebug needs a pairing file and an active LocalDevVPN connection. Winvoy sends its own script automatically.")
                     }
                 }
 

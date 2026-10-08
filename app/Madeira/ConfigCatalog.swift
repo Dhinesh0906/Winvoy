@@ -72,10 +72,10 @@ struct AllSettingsView: View {
         NavigationStack {
             List {
                 Section {
-                    Text("Every other option Madeira reads from madeira.cfg. JIT pool, video memory, the swap tier, the sync engine and eco mode are in Settings › Memory & sync. Most options are read when Madeira starts, so close it from the app switcher after a change. Default leaves the option out of the file. Swipe left on a row to reset it.")
+                    Text("Every other option Winvoy reads from madeira.cfg. JIT pool, video memory, the swap tier, the sync engine and eco mode are in Settings › Memory & sync. Most options are read when Winvoy starts, so close it from the app switcher after a change. Default leaves the option out of the file. Swipe left on a row to reset it.")
                         .font(.footnote).foregroundStyle(.secondary)
                     if changed {
-                        Text("Restart Madeira (close it from the app switcher) for changes to apply.").font(.footnote).foregroundStyle(.orange)
+                        Text("Restart Winvoy (close it from the app switcher) for changes to apply.").font(.footnote).foregroundStyle(.orange)
                     }
                 }
                 ForEach(ConfigCatalog.categories, id: \.self) { category in
@@ -96,7 +96,7 @@ struct AllSettingsView: View {
                                             value: binding(key))
                         }
                     } header: { Text("Other entries in madeira.cfg") } footer: {
-                        Text("Set in your madeira.cfg but not read by name in Madeira's code, for example FEX options passed as env.FEX_*.")
+                        Text("Set in your madeira.cfg but not read by name in Winvoy's code, for example FEX options passed as env.FEX_*.")
                     }
                 }
                 Section {
@@ -222,7 +222,7 @@ struct SettingsSearchResults: View {
             if hits.count > Self.limit {
                 Text("Showing \(Self.limit) of \(hits.count). Refine the search, or open All settings.")
             } else if !hits.isEmpty {
-                Text("Most options are read when Madeira starts: close it from the app switcher after a change.")
+                Text("Most options are read when Winvoy starts: close it from the app switcher after a change.")
             }
         }
         .onChange(of: refresh) { _, _ in values = MadeiraConfig.all() }

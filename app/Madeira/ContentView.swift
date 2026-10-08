@@ -1285,7 +1285,7 @@ struct ContentView: View {
                     developerBody
                 }
             }
-            .navigationTitle("Madeira")
+            .navigationTitle("Winvoy")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.regularMaterial, for: .navigationBar)
             // The library keeps a material bar only before iOS 26. From iOS 26 the
@@ -1294,9 +1294,9 @@ struct ContentView: View {
             // progressive blur (as in the App Store), with no hard edge.
             .toolbarBackground(library.enabled && !Self.systemScrollEdge ? .visible : .automatic, for: .navigationBar)
             // A second session cannot start in this process; offer to close Madeira.
-            .alert("Restart Madeira", isPresented: Binding(get: { library.restartNotice != nil },
+            .alert("Restart Winvoy", isPresented: Binding(get: { library.restartNotice != nil },
                                                             set: { if !$0 { library.restartNotice = nil } })) {
-                Button("Close Madeira") {
+                Button("Close Winvoy") {
                     LogStore.shared.log("[session-once] closed by the user for a restart")
                     exit(0)
                 }
@@ -1667,7 +1667,7 @@ struct ContentView: View {
                         .buttonStyle(.bordered)
                 }
                 if MadeiraDock.enabled {
-                    Button("Madeira Dock") { devSheet = .dock }
+                    Button("Winvoy Dock") { devSheet = .dock }
                         .buttonStyle(.bordered)
                 }
                 Button("All settings") { devSheet = .allSettings }
@@ -2138,10 +2138,10 @@ struct ContentView: View {
             }
             .padding()
         }
-        .alert("Restart Madeira", isPresented: $showFrontendRestart) {
+        .alert("Restart Winvoy", isPresented: $showFrontendRestart) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Close Madeira from the app switcher and open it again to use the new interface.")
+            Text("Close Winvoy from the app switcher and open it again to use the new interface.")
         }
         // One sheet for the strip, not one per button: a sheet attached to a
         // button closed again whenever this often-redrawn screen rebuilt it.
@@ -3574,7 +3574,7 @@ struct SetupGuideView: View {
                 }
 
                 Section("About") {
-                    Text("Madeira is a proof-of-concept for running x86 Windows games on iOS using FEX-Emu, Wine, and Metal-based graphics translation.")
+                    Text("Winvoy is a proof-of-concept for running x86 Windows games on iOS using FEX-Emu, Wine, and Metal-based graphics translation.")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }

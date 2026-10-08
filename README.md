@@ -1,22 +1,66 @@
-<p align="center">
-  <img src="docs/assets/banner.png" alt="Madeira — Bringing PC gaming to your iPhone." width="100%">
-</p>
+<h1 align="center">Winvoy</h1>
 
 <p align="center">
-  <a href="https://discord.gg/4t5mNjwCn7"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscord.com%2Fapi%2Finvites%2F4t5mNjwCn7%3Fwith_counts%3Dtrue&query=%24.approximate_member_count&suffix=%20members&label=Discord&logo=discord&logoColor=white&color=5865F2&style=for-the-badge" alt="Join the Madeira Discord"></a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/willfaust/Madeira/releases"><img src="https://img.shields.io/github/v/release/willfaust/Madeira?label=Release&style=for-the-badge&color=brightgreen" alt="Latest release"></a>
-  &nbsp;&nbsp;&nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0--or--later-yellow?style=for-the-badge" alt="License: GPL-3.0-or-later"></a>
 </p>
 
-Madeira runs Windows PC games on an iPhone, with no jailbreak. Games run as they
+Winvoy runs Windows PC games on an iPhone, with no jailbreak. Games run as they
 are, unmodified, inside a single iOS app.
 
+Winvoy is a fork of **[Madeira](https://github.com/willfaust/Madeira)** by
+willfaust, which does all of the heavy lifting described below. Madeira is
+licensed under GPL-3.0-or-later and so is this fork; all original copyright and
+licence notices are kept. The sections after "What Winvoy changes" are
+Madeira's own documentation, and internal names (`madeira.cfg`, `MADEIRA_*`
+settings, log tags) are unchanged.
+
 > [!NOTE]
-> Madeira is an active research project. Many games start and some play well,
-> but performance and compatibility vary from game to game, and things change
-> quickly. Expect rough edges.
+> Like Madeira, Winvoy is a research project. Many games start and some play
+> well, but performance and compatibility vary from game to game. Expect rough
+> edges.
+
+## Tested
+
+| | |
+|---|---|
+| Game | **God of War (2018)**, PC version (Steam build, with a Lua script-loader mod) |
+| Device | **iPhone 15 Pro** (A17 Pro, 8 GB RAM), iOS 27.0.1 |
+| Result | Boots, loads saves and plays to the first troll fight and beyond (sessions up to ~17 minutes) on the lowest settings, roughly 10-25 fps, with 2-4 s stalls while new areas stream in |
+| Limits | iOS terminates the app at ~6.1 GB on an 8 GB phone, so a game this size leans on Madeira's swap file; the phone also throttles to about half CPU speed after a few minutes |
+
+Other games are untested in Winvoy, but every change below is general and none
+of them is specific to God of War.
+
+## Supported iPhones
+
+| | |
+|---|---|
+| **Minimum** | iPhone 15 Pro / 15 Pro Max (A17 Pro, 8 GB) and later, on iOS 26 or later |
+| **Recommended** | iPhone 17 Pro / 17 Pro Max (12 GB) and later |
+
+Memory is what decides how big a game can run: Winvoy gets roughly the phone's
+RAM minus 1.5 GB before iOS terminates it (about 6.1 GB on a 15 Pro, about
+10 GB on a 17 Pro). Better cooling on newer Pro models also delays thermal
+throttling. Lighter and older games need much less and run far more smoothly.
+
+## What Winvoy changes, and why
+
+Winvoy keeps Madeira's design (FEX + Wine + DXMT in one iOS process) and changes
+only what measurement on the device showed to be wrong. The fixes are on the
+`winvoy` branches of the FEX, Wine and DXMT submodules.
+
+| Problem found | What Madeira did | What Winvoy does instead | Why |
+|---|---|---|---|
+| x86 `lock` instructions on addresses that cross a 16-byte boundary (legal on x86, a fault on ARM) | Emulated each fault in its Mach exception handler (ml431); other atomic kinds went to FEX's handler | **FEX JIT**: every atomic (cmpxchg, xadd, xchg, add, sub, and, or, xor, neg) detects the split case inline and runs under one shared lock | The fault path cost ~8 µs per instruction (a game spun on one 120,000 times a second), and the two handlers did not exclude each other, so a cmpxchg and an xadd on the same counter could lose an update and hang a job system |
+| A thread sleeping in `WaitOnAddress` while the value it waits on had already changed | Fixed one lost-wake cause by sharing the wait table between ntdll copies (ml441) | **Wine ntdll**: infinite address waits re-check every 100 ms (`alert-inf-recheck-ms`) | Windows allows spurious wakes, so callers re-check anyway; any remaining lost wake now costs 100 ms instead of a permanent hang |
+| Games that create a zero-size buffer | Returned `E_INVALIDARG`, like native D3D11 | **DXMT**: an empty placeholder buffer | Apple's D3DMetal (CrossOver) accepts it and some game data relies on that; the error crashed God of War |
+| DXMT's worker pool failing to start a thread under memory pressure | Threw a C++ exception | **DXMT**: pool growth never throws; work stays queued for existing workers | On iOS the exception cannot unwind through the JIT-pool copy of `d3d11.dll`, so it escaped as a crash |
+| Per-draw dynamic buffers re-created every frame | Kept 64 recycled versions per buffer | **DXMT**: up to 2048 versions within 1 MB per buffer, 128 MB in total | Buffer reuse went from 57% to 99% and fresh allocations from ~1M to ~50k per session |
+| Available memory reported to games | Device-wide free pages | **Wine ntdll**: this app's real headroom before iOS terminates it | Free pages say nothing about how close the app is to its own limit |
+| Building on a Mac | Scripts reconstructed from the developer's machine | **Build scripts** fixed for macOS hosts, plus helpers in `build/winvoy/` | The FEX configure, Wine headers, wineserver base archive, LLVM for iOS and DXMT shader headers were missing or failed on a clean Mac |
+
+Settings that make heavy games fit on an 8 GB iPhone (all in `madeira.cfg`,
+see "Running Winvoy on your iPhone" below) are configuration, not code changes.
 
 ## How it works
 
@@ -45,45 +89,114 @@ Wine's server runs as a thread instead of a separate program.
 - **Keyboard, mouse and trackpad** passed through to games as real input.
 - **Video and audio** for cutscenes and music, through FFmpeg, VideoToolbox and AudioToolbox.
 
-## Requirements
+## Running Winvoy on your iPhone
 
-- An iPhone on **iOS 26 or later**, the only version Madeira currently runs
-  on reliably. Development happens on recent Pro iPhones.
-- **JIT**, which iOS only allows while a debugger is attached. Madeira can use
-  [StikDebug](https://github.com/StikDebug/StikDebug) or its built-in StikJIT
-  helper. On iOS 27 the built-in helper can pair the iPhone itself, without a
-  computer.
-- An **Apple ID** to sideload the app. A free account works; its signing
-  expires after 7 days, so the app needs refreshing weekly. Your games and
-  saves are kept across reinstalls.
+There is no prebuilt Winvoy app yet, so it is built from source with Xcode. You
+need a Mac, Xcode, an Apple ID (a free one works; the app must be re-signed
+every 7 days) and a supported iPhone.
 
-Because JIT needs a debugger, Madeira cannot be offered on the App Store.
-
-## Installing
-
-1. Download the IPA from the [latest release](https://github.com/willfaust/Madeira/releases).
-2. Sideload it with your own Apple ID using SideStore, AltStore, Sideloadly,
-   Plume or a similar tool.
-3. Open Madeira and enable JIT. Automatic mode uses StikDebug when installed,
-   otherwise it guides you through the built-in setup; see
-   [JIT setup](docs/JIT.md).
-4. In **Settings**, check that **JIT** and **Memory+** both show a green check:
-   Madeira then says **Ready to play**.
-
-Some 64-bit games need Microsoft's Visual C++ runtime, which is not included
-(see [Licensing](#licensing)).
-
-## Building from source
+### 1. Install the tools
 
 ```sh
-git clone --recurse-submodules https://github.com/willfaust/Madeira.git
+xcode-select --install                     # plus Xcode from the App Store
+brew install cmake ninja meson bison flex pkgconf
+curl https://sh.rustup.rs -sSf | sh && rustup target add aarch64-apple-ios
+xcodebuild -downloadComponent MetalToolchain
 ```
 
-`FEX`, `wine`, `dxmt` and `madeira-dock` are submodules that point at Madeira's
-own forks; upstream checkouts will not build here. The build has several parts
-(the Wine unix libraries, the ARM64EC Windows modules, FEX, DXMT and the app)
-and some inputs that are not in the repository, such as the toolchains.
-[`docs/BUILDING.md`](docs/BUILDING.md) walks through all of it.
+### 2. Get the source
+
+```sh
+git clone --recurse-submodules https://github.com/Dhinesh0906/Winvoy.git
+cd Winvoy
+git -C FEX submodule update --init --recursive --depth 1
+git -C dxmt submodule update --init --depth 1
+git clone --depth 1 --branch VER-2-13-3 https://github.com/freetype/freetype.git research/freetype
+```
+
+### 3. Inputs that are not in the repository
+
+- **llvm-mingw** (the Windows cross compiler): download
+  `llvm-mingw-20260421-ucrt-macos-universal.tar.xz` from
+  [mstorsjo/llvm-mingw](https://github.com/mstorsjo/llvm-mingw/releases/tag/20260421),
+  check SHA-256 `bd85a3975723815cef28dbbd2ca2cb0c926f6b348a12a0453f39f7af273cb3f7`,
+  and extract it into `toolchains/`.
+- **Microsoft Visual C++ runtime** (x64): extract the twelve DLLs from
+  Microsoft's `vc_redist.x64.exe` into `app/Madeira/x86_64-vcruntime/`
+  (see `tools/fetch-vcruntime.md`). Microsoft's licence does not allow them in
+  this repository.
+
+### 4. Build the native libraries (once; about an hour)
+
+```sh
+bash build/gnutls-ios/build.sh
+bash build/ffmpeg/build.sh
+bash build/fex-ios/build.sh && cmake --build FEX/build-ios --target fmt cephes_128bit xxhash softfloat_3e JemallocLibs
+bash build/fex-arm64ec/build.sh
+bash build/winvoy/configure-wine-macos.sh
+bash build/ntdll-unix/build.sh
+bash build/win32u-unix/build.sh
+bash build/freetype-ios/build.sh
+bash build/winvoy/seed-wineserver-base.sh && bash build/wineserver/build.sh
+bash build/winvoy/build-llvm-ios.sh                 # LLVM 15 for iOS, the long step
+bash build/winvoy/gen-airconv-shaders.sh
+bash build/dxmt-ios/build.sh && bash build/winvoy/combine-dxmt.sh
+bash build/winvoy/configure-wine-arm64ec.sh         # only to rebuild DXMT's d3d11.dll
+bash build/rppairing-ios/build.sh
+bash build/stage-licenses.sh
+```
+
+[`docs/BUILDING.md`](docs/BUILDING.md) explains each step.
+
+### 5. Install it on the iPhone
+
+1. Open `app/Madeira.xcodeproj` in Xcode.
+2. In **Signing & Capabilities**, choose your team and give the app a bundle ID
+   of your own (for example `com.yourname.winvoy`).
+3. Connect the iPhone, select it, choose the **Debug** configuration and press
+   **Run**. (Debug is the configuration that runs games.)
+4. On the iPhone, trust your developer certificate in Settings › General ›
+   VPN & Device Management.
+
+### 6. First launch
+
+1. Enable **JIT**: Winvoy uses StikDebug or its built-in StikJIT helper (with
+   LocalDevVPN); see [JIT setup](docs/JIT.md). In **Settings**, **JIT** and
+   **Memory+** should both show a green check.
+2. Add a game: copy the game's folder to the iPhone (Files app or Finder) and add
+   its `.exe` to the library.
+
+### Settings for big games on an 8 GB iPhone
+
+Put these in `Documents/madeira.cfg` (Files app › On My iPhone › Winvoy). They
+are the settings God of War ran with on an iPhone 15 Pro:
+
+```ini
+pool = 640
+vram-mb = 1024
+dxmt = dxgi.forceSDR=True;d3d11.preferredMaxFrameRate=30
+env.DXMT_CENSUS_THROTTLE = 1
+env.DXMT_IOS_CACHE_DIR = 1
+env.FEX_EXTENDEDVOLATILEMETADATA = oo2core_5_win64.dll:bink2w64.dll
+swap-mb = 6144
+env.MADEIRA_SWAP_COVERAGE = broad
+env.MADEIRA_SWAP_MIN_KB = 64
+swap-advise = 1
+totalphys = 4096
+vram-trim-mb = 1024
+env.MADEIRA_PAD_MODE = hid
+```
+
+- `swap-*` move game memory into a file iOS does not count against its limit
+  (64 KB is the most crash-resistant floor; 256 KB stutters less but crashes
+  sooner).
+- `vram-mb`, `totalphys` and `vram-trim-mb` make the game budget for a phone, not
+  a PC.
+- `env.DXMT_IOS_CACHE_DIR = 1` keeps compiled shaders between sessions.
+- `dxgi.forceSDR=True` avoids a near-black picture when a game turns on HDR.
+- `env.MADEIRA_PAD_MODE = hid` presents a PlayStation controller as a real
+  DualSense (needed by Sony PC ports such as God of War).
+- Use the lowest graphics settings in the game itself and keep the phone cool.
 
 ### Repository layout
 
