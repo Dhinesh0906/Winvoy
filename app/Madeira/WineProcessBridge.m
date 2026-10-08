@@ -1457,6 +1457,20 @@ static void *wine_process_thread(void *arg) {
             // <filesystem>, etc.) don't trip __wine_unimplemented stubs.
             if (use_arm64ec) {
                 NSString *vcrtSource = [bundlePath stringByAppendingPathComponent:@"x86_64-vcruntime"];
+                /* Winvoy: a published IPA cannot carry Microsoft's DLLs. When the
+                 * bundle has none, take them from Documents/x86_64-vcruntime,
+                 * which the user fills from the Files app. */
+                {
+                    NSPredicate *isDll = [NSPredicate predicateWithFormat:@"SELF ENDSWITH[c] '.dll'"];
+                    NSString *vcrtDocs = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject
+                                          stringByAppendingPathComponent:@"x86_64-vcruntime"];
+                    if (![[[fm contentsOfDirectoryAtPath:vcrtSource error:nil] filteredArrayUsingPredicate:isDll] count] &&
+                        [[[fm contentsOfDirectoryAtPath:vcrtDocs error:nil] filteredArrayUsingPredicate:isDll] count])
+                    {
+                        vcrtSource = vcrtDocs;
+                        NSLog(@"[WineProc] MS VC++ runtime taken from Documents/x86_64-vcruntime (none in the app bundle)");
+                    }
+                }
                 NSArray *vcrtDlls = [fm contentsOfDirectoryAtPath:vcrtSource error:nil];
                 int vcrtLinked = 0, vcrtSkipped = 0;
                 for (NSString *dll in vcrtDlls) {

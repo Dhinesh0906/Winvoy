@@ -109,6 +109,30 @@ There is no prebuilt Winvoy app yet, so it is built from source with Xcode. You
 need a Mac, Xcode, an Apple ID (a free one works; the app must be re-signed
 every 7 days) and a supported iPhone.
 
+### Quick install: the IPA (no Mac build)
+
+Each [release](https://github.com/Dhinesh0906/Winvoy/releases) has an unsigned
+`Winvoy-unsigned.ipa` for iPhone and iPad, built from this repository.
+
+1. Sign and install it with SideStore, AltStore, Sideloadly or Plume.
+2. Set up JIT ([docs/JIT.md](docs/JIT.md)); iOS 26 or later.
+3. Microsoft's Visual C++ runtime is not in the IPA (its licence does not
+   allow it). Many games need it: unpack `vc_redist.x64.exe` (see
+   [`tools/fetch-vcruntime.md`](tools/fetch-vcruntime.md)) and copy its DLLs
+   into **Files › On My iPhone › Winvoy › `x86_64-vcruntime`**.
+4. Copy a game folder into Winvoy and add its `.exe` to the library.
+
+On first launch Winvoy writes starting settings sized to the device into
+`madeira.cfg` (8 GB+ devices and smaller ones get different values; anything
+you change later is kept). Notes:
+
+- Big games need the **increased memory limit** entitlement. Check that
+  Settings › Memory+ shows a green check after sideloading; some free-account
+  sideloaders drop it.
+- A free Apple account's signature lasts 7 days.
+
+The rest of this section builds Winvoy from source on a Mac.
+
 ### 1. Install the tools
 
 ```sh
